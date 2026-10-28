@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FourFrames — Letterboxd Zevk Uyumu & Karşılaştırma Aracı</title>
+  <meta name="description" content="İki Letterboxd kullanıcısının film zevki uyumunu, ortak favorilerini, en büyük puan ayrılıklarını ve ortak izleme listesini ücretsiz analiz edin." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="top-accent-bar"></div>
+
+  <!-- Üst Navigasyon -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="./" class="brand">
+        <span class="brand-dots" aria-hidden="true">
+          <span class="dot-orange"></span>
+          <span class="dot-green"></span>
+          <span class="dot-blue"></span>
+        </span>
+        <span class="brand-title">FourFrames</span>
+        <span class="brand-badge">%100 Ücretsiz • Açık Araç</span>
+      </a>
+
+      <div class="header-actions">
+        <button type="button" id="shareUrlBtn" class="ghost-link" style="cursor:pointer; display:none;" onclick="copyShareUrl()">
+          🔗 Karşılaştırma Linkini Kopyala
+        </button>
+        <a href="https://github.com/mustafa-akkus/fourframes" target="_blank" rel="noopener" class="ghost-link">
+          ⭐ GitHub
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Ana İçerik -->
+  <main class="main-container">
+    <!-- Hero & Kullanıcı Adı Giriş Formu -->
+    <section class="hero-section">
+      <div class="hero-eyebrow">
+        <span>🎬</span>
+        <span>Letterboxd Taste Compatibility</span>
+      </div>
+      <h1 class="hero-title">Sinema Zevkiniz Ne Kadar Uyumlu?</h1>
+      <p class="hero-subtitle">
+        Üyelik veya şifre gerekmez. İki Letterboxd kullanıcı adını girin; ortak favorilerinizi, en keskin puan çatışmalarınızı, ortak Watchlist'inizi ve buz kırıcı sohbet konularınızı saniyeler içinde görün.
+      </p>
+
+      <form id="compareForm" class="compare-form-card" onsubmit="handleCompareSubmit(event)">
+        <div class="compare-inputs-row">
+          <div class="input-group">
+            <label for="user1Input">1. Letterboxd Kullanıcısı</label>
+            <div class="input-wrapper">
+              <span class="input-prefix">@</span>
+              <input
+                id="user1Input"
+                name="user1"
+                type="text"
+                placeholder="kullanici_adi_1"
+                autocomplete="off"
+                required
+              />
+            </div>
+          </div>
+
+          <button type="button" class="swap-btn" title="Kullanıcıları Değiştir" onclick="swapUsers()">
+            ⇄
+          </button>
+
+          <div class="input-group">
+            <label for="user2Input">2. Letterboxd Kullanıcısı</label>
+            <div class="input-wrapper">
+              <span class="input-prefix">@</span>
+              <input
+                id="user2Input"
+                name="user2"
+                type="text"
+                placeholder="kullanici_adi_2"
+                autocomplete="off"
+                required
+              />
+            </div>
+          </div>
+
+          <button type="submit" id="submitBtn" class="submit-btn">
+            <span>Uyumu Analiz Et</span>
+          </button>
+        </div>
+
+        <div class="presets-row">
+          <span class="presets-label">Hızlı Canlı Örnekler:</span>
+          <button type="button" class="preset-pill" onclick="runPreset('dtquandt', 'karsten')">
+            @dtquandt ⇄ @karsten
+          </button>
+          <button type="button" class="preset-pill" onclick="runPreset('dtquandt', 'davidehrlich')">
+            @dtquandt ⇄ @davidehrlich
+          </button>
+          <button type="button" class="preset-pill" onclick="runPreset('karsten', 'davidehrlich')">
+            @karsten ⇄ @davidehrlich
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Durum / Yükleniyor / Hata Alanı -->
+    <div id="statusContainer"></div>
+
+    <!-- Sonuç Panosu -->
+    <section id="resultsContainer" style="display: none;"></section>
+  </main>
+
+  <footer class="site-footer">
+    <p>
+      <strong>FourFrames</strong> • Letterboxd kullanıcıları için açık ve ücretsiz sinema zevki uyumu analiz aracı.
+      <a href="https://github.com/mustafa-akkus/fourframes" target="_blank" rel="noopener">GitHub (@mustafa-akkus)</a>
+    </p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
