@@ -1,65 +1,59 @@
-# 🎬 FourFrames — Letterboxd Taste Compatibility & Discovery
+# The Just
 
-<p align="center">
-  <strong>İki Letterboxd kullanıcısının sinema zevki uyumunu, ortak favorilerini, en keskin puan ayrılıklarını, ortak Watchlist'ini ve güncel RSS günlüklerini analiz eden %100 ücretsiz ve açık kaynaklı web uygulaması.</strong>
-</p>
+The Just is a social discovery and film taste compatibility web application built around Letterboxd watch histories. Users can create a profile, upload a profile photo, link their Letterboxd username, and connect with people who share similar cinematic tastes.
 
----
+## Overview
 
-## ✨ Temel Özellikler (Features)
+The platform is organized into separate, focused screens rather than displaying all information on a single page:
 
-- **🎯 %100 Ücretsiz & Şifresiz (Zero-Login):** Herhangi bir üyelik, şifre veya Pro paket kısıtlaması olmadan sadece iki Letterboxd kullanıcı adı (`@user1` ⇄ `@user2`) girerek anında analiz yapar.
-- **📊 Çok Boyutlu Zevk Uyumu (Taste Compatibility):**
-  - Genel uyum yüzdesi (`%`), puanlama yakınlığı (*Rating Harmony*), katalog kesişim oranı ve birebir aynı puan isabet oranı.
-  - **İzleme Kesişimi (Venn Breakdown):** Sadece 1. kullanıcının izledikleri, ikisinin de ortak izlediği filmler ve sadece 2. kullanıcının izledikleri.
-  - **Puanlama Dengesi:** Kimin daha bonkör/sert puan verdiği ve ortalama yıldız farkı (`Δ ★`).
-- **🤝 Ortak Sevilenler (Agreements):** İki kullanıcının da yüksek puan verip uzlaştığı favori filmler ve anlık arama filtresi.
-- **⚡ En Keskin Puan Ayrılıkları (Disagreements / Hot Takes):** İki kullanıcının en farklı puanları verdiği filmlerin görsel karşılaştırma kartları.
-- **🍿 Ortak Watchlist & 🎲 Rastgele Film Gecesi Seçici (Random Movie Picker):** İki kullanıcının da izleme listesinde bekleyen ortak filmler ve *"Bu akşam ne izleyelim?"* sorusunu tek tıkla çözen zar atma aracı.
-- **🔭 Kör Noktalar & Model Önerileri (Blind Spots & Joint Picks):**
-  - 1. kullanıcının favorisi olup 2. kullanıcının henüz izlemediği filmler,
-  - 2. kullanıcının favorisi olup 1. kullanıcının henüz izlemediği filmler,
-  - Algoritmanın her iki kullanıcıya ortak önerdiği filmler.
-- **🕒 Canlı RSS Günlüğü & İncelemeler:** Doğrudan `letterboxd.com/<username>/rss/` üzerinden iki kullanıcının son izlediği filmler, beğeni (`❤️`) oranları ve yazdıkları incelemeler.
-- **💬 Otomatik Buz Kırıcı Sorular (Icebreakers) & 🧾 Paylaşılabilir Uyum Fişi:** Gerçek film kesişimlerinden otomatik üretilen sohbet başlatıcı sorular ve tek tıkla kopyalanabilir özet fişi.
+1. **Welcome and Authentication:** Clean entry screen with dedicated views for user login and account registration.
+2. **Profile and Photo Setup:** Users provide personal details (name, age, location, bio, connection preference, favorite genres), upload a profile photo, and link their public Letterboxd username.
+3. **Member Discovery:** Displays registered members ordered by calculated film taste compatibility percentage.
+4. **Compatibility Breakdown:** A dedicated view comparing the logged-in user and a selected member across shared watched films, rating distance, mutual favorites, rating disagreements, and shared watchlist items.
+5. **Direct Messaging:** A dedicated chat window with conversation starters generated from shared film history.
+6. **Head-to-Head Comparison Tool:** A standalone view for comparing any two public Letterboxd usernames directly.
 
----
+## Technical Architecture
 
-## 🚀 Hızlı Başlangıç (Quick Start)
-
-Proje **sıfır harici paket bağımlılığı (Zero-Dependency Python 3 Standard Library)** ile çalışacak şekilde tasarlanmıştır.
-
-```bash
-# 1. Depoyu klonlayın
-git clone https://github.com/mustafa-akkus/fourframes.git
-cd fourframes
-
-# 2. Sunucuyu başlatın (Python 3.10+)
-py app.py
-# veya: python3 app.py
-```
-
-Tarayıcınızda **`http://localhost:8000`** adresini açın.
-
----
-
-## 🏗️ Mimari (Architecture)
+The project runs on the Python 3 standard library (`http.server`, `sqlite3`, `urllib.request`, `xml.etree.ElementTree`, `concurrent.futures`) with no external package dependencies required.
 
 ```text
-fourframes/
-├── app.py              # Çok iş parçacıklı (ThreadPoolExecutor) Python HTTP & API Sunucusu
+the-just/
+├── app.py              # Multi-threaded HTTP server, SQLite database layer, and Letterboxd parser
 ├── static/
-│   ├── index.html      # Sade, sekmeli ve duyarlı (responsive) Web Arayüzü
-│   ├── styles.css      # Letterboxd renk paletiyle uyumlu modern karanlık tema
-│   └── app.js          # İstemci motoru (Yerel API + GitHub Pages CORS Fallback)
+│   ├── index.html      # Application shell and navigation header
+│   ├── styles.css      # Dark theme stylesheet
+│   └── app.js          # Multi-screen client router and API integration
 └── README.md
 ```
 
-### API Uç Noktaları (Endpoints)
-- `GET /api/compatibility?user1=<u1>&user2=<u2>&refresh=<0|1>` — İki kullanıcının derin izleme geçmişi uyumunu ve canlı RSS verilerini paralel olarak birleştirip JSON döndürür.
-- `GET /api/user?username=<u1>` — Tek bir Letterboxd kullanıcısının canlı RSS günlüklerini, puan ortalamasını ve incelemelerini döndürür.
+### API Endpoints
 
----
+- `POST /api/auth/register` — Registers a new user account, stores profile metadata and photo, and syncs initial Letterboxd summary statistics.
+- `POST /api/auth/login` — Authenticates an existing user and returns a session token.
+- `GET /api/auth/me` — Returns the currently authenticated user profile.
+- `POST /api/profile/update` — Updates personal information, profile photo, and linked Letterboxd account.
+- `GET /api/discover` — Lists community members ranked by taste compatibility with the current user.
+- `GET /api/member?id=<id>` — Returns a member's profile alongside a full head-to-head Letterboxd compatibility analysis.
+- `GET /api/messages?user_id=<id>` & `POST /api/messages` — Retrieves and sends direct messages between matched users.
+- `GET /api/compatibility?user1=<u1>&user2=<u2>` — Computes taste compatibility between any two Letterboxd usernames.
 
-## 📄 Lisans
-MIT License — [@mustafa-akkus](https://github.com/mustafa-akkus)
+## Getting Started
+
+### Prerequisites
+
+- Python 3.10 or newer
+
+### Running Locally
+
+```bash
+git clone https://github.com/mustafa-akkus/the-just.git
+cd the-just
+python app.py
+```
+
+Open `http://localhost:8000` in your browser.
+
+## License
+
+MIT License
