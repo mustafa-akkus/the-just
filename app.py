@@ -20,6 +20,15 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from nlp.collector import export_dataset_to_jsonl, harvest_from_letterboxd, init_nlp_tables
+from nlp.models import (
+    analyze_turkish_review_full,
+    get_nlp_dashboard_status,
+    train_pytorch_model,
+    train_sklearn_model,
+)
+from nlp.preprocessor import ASPECT_KEYS
+
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 DB_PATH = BASE_DIR / "the_just.db"
@@ -1106,6 +1115,88 @@ class TheJustHandler(SimpleHTTPRequestHandler):
                 self.send_json({"ok": False, "error": str(exc)}, status=500)
             return
 
+        # 5. NLP: HARVEST REAL TURKISH REVIEWS FROM LETTERBOXD
+        if parsed.path == "/api/nlp/harvest":
+            try:
+                body = self.read_json_body()
+                raw_seeds = body.get("seeds") or ""
+                if isinstance(raw_seeds, str):
+                    seeds = [s.strip() for s in raw_seeds.split(",") if s.strip()]
+                elif isinstance(raw_seeds, list):
+                    seeds = [str(s).strip() for s in raw_seeds if str(s).strip()]
+                else:
+                    seeds = None
+                expand = bool(body.get("expandGraph", True))
+                res = harvest_from_letterboxd(seed_usernames=seeds or None, expand_graph=expand)
+                self.send_json({"ok": True, "result": res})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, status=500)
+            return
+
+        # 6. NLP: SAVE VERIFIED ASPECT LABELS OR BULK APPROVE
+        if parsed.path == "/api/nlp/label":
+            try:
+                body = self.read_json_body()
+                conn = get_db()
+                cur = conn.cursor()
+
+                if body.get("bulkApprove"):
+                    cur.execute("UPDATE turkish_reviews SET is_verified = 1 WHERE is_verified = 0")
+                    updated_count = cur.rowcount
+                    conn.commit()
+                    conn.close()
+                    export_dataset_to_jsonl()
+                    self.send_json({"ok": True, "updatedCount": updated_count})
+                    return
+
+                rev_id = int(body.get("id") or 0)
+                labels = body.get("labels") or {}
+                clean_labels = {k: max(-1, min(1, int(labels.get(k, 0)))) for k in ASPECT_KEYS}
+
+                cur.execute(
+                    "UPDATE turkish_reviews SET labels_json = ?, is_verified = 1 WHERE id = ?",
+                    (json.dumps(clean_labels, ensure_ascii=False), rev_id),
+                )
+                conn.commit()
+                conn.close()
+                export_dataset_to_jsonl()
+                self.send_json({"ok": True})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, status=500)
+            return
+
+        # 7. NLP: TRAIN STAGE 1 (SKLEARN) AND/OR STAGE 2 (PYTORCH) MODELS
+        if parsed.path == "/api/nlp/train":
+            try:
+                body = self.read_json_body()
+                stage = (body.get("stage") or "both").lower()
+                out = {}
+                if stage in ("sklearn", "both"):
+                    out["sklearn"] = train_sklearn_model()
+                if stage in ("pytorch", "both"):
+                    out["pytorch"] = train_pytorch_model()
+                out["status"] = get_nlp_dashboard_status()
+                self.send_json({"ok": True, "result": out})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, status=500)
+            return
+
+        # 8. NLP: LIVE REVIEW INFERENCE (SKLEARN + PYTORCH BILSTM-ATTENTION)
+        if parsed.path == "/api/nlp/analyze":
+            try:
+                body = self.read_json_body()
+                text = (body.get("text") or "").strip()
+                rating = body.get("rating")
+                rating_val = float(rating) if rating is not None and str(rating) != "" else None
+                if not text:
+                    self.send_json({"ok": False, "error": "Analiz edilecek Türkçe yorum metni girin."}, status=400)
+                    return
+                res = analyze_turkish_review_full(text, rating_val)
+                self.send_json({"ok": True, "analysis": res})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, status=500)
+            return
+
         self.send_json({"ok": False, "error": "Not found"}, status=404)
 
     def do_GET(self):
@@ -1249,11 +1340,74 @@ class TheJustHandler(SimpleHTTPRequestHandler):
                 )
             return
 
+        # 6. NLP DASHBOARD STATUS
+        if parsed.path == "/api/nlp/status":
+            try:
+                init_nlp_tables()
+                self.send_json({"ok": True, "status": get_nlp_dashboard_status()})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, status=500)
+            return
+
+        # 7. NLP REVIEWS LIST FOR LABELING STUDIO
+        if parsed.path == "/api/nlp/reviews":
+            try:
+                init_nlp_tables()
+                flt = (params.get("filter") or ["all"])[0]
+                limit = int((params.get("limit") or ["15"])[0])
+                offset = int((params.get("offset") or ["0"])[0])
+
+                conn = get_db()
+                cur = conn.cursor()
+                if flt == "unverified":
+                    cur.execute(
+                        "SELECT * FROM turkish_reviews WHERE is_verified = 0 ORDER BY id ASC LIMIT ? OFFSET ?",
+                        (limit, offset),
+                    )
+                elif flt == "verified":
+                    cur.execute(
+                        "SELECT * FROM turkish_reviews WHERE is_verified = 1 ORDER BY id DESC LIMIT ? OFFSET ?",
+                        (limit, offset),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT * FROM turkish_reviews ORDER BY is_verified ASC, id ASC LIMIT ? OFFSET ?",
+                        (limit, offset),
+                    )
+                rows = cur.fetchall()
+                conn.close()
+
+                items = [
+                    {
+                        "id": r["id"],
+                        "username": r["username"],
+                        "displayName": r["display_name"],
+                        "filmTitle": r["film_title"],
+                        "filmYear": r["film_year"],
+                        "rating": r["rating"],
+                        "liked": bool(r["liked"]),
+                        "watchedDate": r["watched_date"],
+                        "logUrl": r["log_url"],
+                        "posterUrl": r["poster_url"],
+                        "reviewText": r["review_text"],
+                        "clauses": json.loads(r["clauses_json"] or "[]"),
+                        "labels": json.loads(r["labels_json"] or "{}"),
+                        "evidence": json.loads(r["evidence_json"] or "{}"),
+                        "isVerified": bool(r["is_verified"]),
+                    }
+                    for r in rows
+                ]
+                self.send_json({"ok": True, "reviews": items, "status": get_nlp_dashboard_status()})
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, status=500)
+            return
+
         return super().do_GET()
 
 
 def main():
     init_db()
+    init_nlp_tables()
     port = int(os.environ.get("PORT", "8000"))
     server = ThreadingHTTPServer(("0.0.0.0", port), TheJustHandler)
     print(f"The Just Web Server running at http://localhost:{port}")
